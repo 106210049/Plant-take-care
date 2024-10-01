@@ -25,14 +25,13 @@ private:
   // int Lamp_Pin;
   // int Motor_Pin_Left;
   // int Motor_Pin_Right;
-  int Buzzer;
   int water_pump;
 
 public:
   void
   Set_Load_Pin();
+  // void Turn_On_Lamp();
   void Turn_On_Pump();
-  void Turn_On_Buzzer();
 };
 #define SCREEN_WIDTH 128 // OLED width,  in pixels
 #define SCREEN_HEIGHT 64 // OLED height, in pixels
@@ -47,10 +46,9 @@ public:
 Sensor sensor;
 Load load;
 OLED_DISPLAY oled_1306;
-
 void Sensor::Set_Sensor_Pin()
 {
-  DHT_PIN = 2;
+  DHT_PIN = 0;
   dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
 }
 void OLED_DISPLAY::Set_up_oled()
