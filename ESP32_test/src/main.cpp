@@ -4,10 +4,13 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "DHTesp.h"
+#include "ESP32_C3_TimerInterrupt.h"
+
 class Sensor
 {
 private:
   int DHT_PIN;
+  int button_pin;
   int soil_sensor;
   DHTesp dhtSensor;
   String temp, hum;
@@ -22,15 +25,12 @@ public:
 class Load
 {
 private:
-  // int Lamp_Pin;
-  // int Motor_Pin_Left;
-  // int Motor_Pin_Right;
+  int Buzzer;
   int water_pump;
 
 public:
-  void
-  Set_Load_Pin();
-  // void Turn_On_Lamp();
+  void Set_Load_Pin();
+  void Turn_On_Buzzer();
   void Turn_On_Pump();
 };
 #define SCREEN_WIDTH 128 // OLED width,  in pixels
@@ -49,6 +49,8 @@ OLED_DISPLAY oled_1306;
 void Sensor::Set_Sensor_Pin()
 {
   DHT_PIN = 0;
+  button_pin = 6;
+  pinMode(button_pin, INPUT);
   dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
 }
 void OLED_DISPLAY::Set_up_oled()
@@ -75,17 +77,39 @@ void OLED_DISPLAY::display_oled()
   oled.println("Humidity: " + sensor.hum + "%");
   oled.display(); // display on OLED
 }
-
+void Load::Set_Load_Pin()
+{
+  Buzzer = 7;
+  water_pump = 1;
+  pinMode(Buzzer, OUTPUT);
+  pinMode(water_pump, OUTPUT);
+}
 void Sensor::Read_Sensor()
 {
   TempAndHumidity data = sensor.dhtSensor.getTempAndHumidity();
   sensor.temp = String(data.temperature, 2);
   sensor.hum = String(data.humidity, 1);
+  if (digitalRead(sensor.button_pin) == HIGH)
+  {
+    load.Turn_On_Buzzer();
+    // Serial.println(digitalRead(sensor.button_pin));
+  }
+  // else
+  // {
+  //   Serial.println(digitalRead(sensor.button_pin));
+  // }
+}
+void Load::Turn_On_Buzzer()
+{
+  digitalWrite(Buzzer, HIGH);
+  delay(500);
+  digitalWrite(Buzzer, LOW);
 }
 void setup()
 {
   Serial.begin(9600);
   sensor.Set_Sensor_Pin();
+  load.Set_Load_Pin();
   oled_1306.Set_up_oled();
 }
 void loop()
