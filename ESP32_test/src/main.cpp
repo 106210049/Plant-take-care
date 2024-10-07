@@ -4,7 +4,10 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include "DHTesp.h"
-#include "ESP32_C3_TimerInterrupt.h"
+
+volatile int state = 1;                      // Biến state sẽ xoay vòng giữa 1, 2, 3
+volatile unsigned long lastDebounceTime = 0; // Thời gian cuối cùng nút được nhấn
+const unsigned long debounceDelay = 250;     // Thời gian trễ khử rung 50ms
 
 class Sensor
 {
@@ -13,6 +16,12 @@ private:
   int button_pin;
   int soil_sensor;
   DHTesp dhtSensor;
+  int pinVol;
+  int pinAmp;
+  float volt, current, power, ampHours;
+  unsigned long previousMillis;
+  float totalCharge;
+  float elapsedTime;
   String temp, hum;
 
 public:
@@ -20,6 +29,21 @@ public:
   friend class OLED_DISPLAY;
   void Set_Sensor_Pin();
   void Read_Sensor();
+  // void Read_Button();
+  static void IRAM_ATTR handleInterrupt()
+  {
+    unsigned long currentTime = millis(); // Thời gian hiện tại
+    // Kiểm tra nếu thời gian từ lần nhấn trước vượt quá khoảng thời gian khử rung
+    if ((currentTime - lastDebounceTime) > debounceDelay)
+    {
+      state++; // Tăng giá trị state
+      if (state > 3)
+      {
+        state = 1; // Xoay vòng giá trị state giữa 1, 2, 3
+      }
+      lastDebounceTime = currentTime; // Cập nhật thời gian nhấn nút cuối cùng
+    }
+  }
 };
 
 class Load
@@ -48,9 +72,14 @@ Load load;
 OLED_DISPLAY oled_1306;
 void Sensor::Set_Sensor_Pin()
 {
-  DHT_PIN = 0;
+  DHT_PIN = 10;
   button_pin = 6;
-  pinMode(button_pin, INPUT);
+  pinVol = 2;
+  pinAmp = 3;
+  pinMode(button_pin, INPUT_PULLUP); // Cấu hình nút nhấn với pullup
+  pinMode(pinVol, INPUT);
+  pinMode(pinAmp, INPUT);
+  attachInterrupt(digitalPinToInterrupt(button_pin), handleInterrupt, FALLING);
   dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
 }
 void OLED_DISPLAY::Set_up_oled()
@@ -71,10 +100,50 @@ void OLED_DISPLAY::Set_up_oled()
 void OLED_DISPLAY::display_oled()
 {
   oled.clearDisplay();
-  oled.setCursor(0, 2);
 
-  oled.println("Temperature: " + sensor.temp + "oC"); // set text
-  oled.println("Humidity: " + sensor.hum + "%");
+  switch (state)
+  {
+  case 1:
+    oled.setCursor(0, 2);
+    if (sensor.temp != "NaN" && sensor.hum != "NaN")
+    {
+      oled.println("Temperature: " + sensor.temp + "oC"); // set text
+      oled.println("Humidity: " + sensor.hum + "%");
+    }
+    else
+    {
+      oled.println("Temp/Humid Error"); // Hiển thị thông báo nếu không đọc được cảm biến
+    }
+    break;
+  case 2:
+    oled.setCursor(0, 0);
+    oled.println("Soil: "); // Chưa có logic, thêm sau
+    break;
+  case 3:
+    oled.setCursor(0, 0);
+    oled.print("Volt: ");
+    oled.print(sensor.volt);
+    oled.print(" V");
+
+    oled.setCursor(0, 16);
+    oled.print("Current: ");
+    oled.print(sensor.current);
+    oled.print(" A");
+
+    oled.setCursor(0, 32);
+    oled.print("Power: ");
+    oled.print(sensor.power);
+    oled.print(" W");
+
+    oled.setCursor(0, 48);
+    oled.print("Energy: ");
+    oled.print(sensor.ampHours);
+    oled.print(" Wh");
+    break;
+  default:
+    break;
+  }
+
   oled.display(); // display on OLED
 }
 void Load::Set_Load_Pin()
@@ -87,17 +156,49 @@ void Load::Set_Load_Pin()
 void Sensor::Read_Sensor()
 {
   TempAndHumidity data = sensor.dhtSensor.getTempAndHumidity();
-  sensor.temp = String(data.temperature, 2);
-  sensor.hum = String(data.humidity, 1);
-  if (digitalRead(sensor.button_pin) == HIGH)
+
+  // Kiểm tra nếu dữ liệu trả về hợp lệ
+  if (!isnan(data.temperature) && !isnan(data.humidity))
   {
-    load.Turn_On_Buzzer();
-    // Serial.println(digitalRead(sensor.button_pin));
+    sensor.temp = String(data.temperature, 2);
+    sensor.hum = String(data.humidity, 1);
   }
-  // else
-  // {
-  //   Serial.println(digitalRead(sensor.button_pin));
-  // }
+  else
+  {
+    sensor.temp = "NaN"; // Giá trị báo lỗi
+    sensor.hum = "NaN";
+  }
+
+  volt = 0;
+  current = 0;
+  int a = 0, c = 0;
+  for (int i = 0; i < 200; i++)
+  {
+    c = analogRead(pinAmp); // Đọc giá trị dòng
+    a = analogRead(pinVol); // Đọc giá trị điện áp
+    sensor.volt += a;
+    sensor.current += c;
+    delay(1);
+  }
+
+  // Điều chỉnh giá trị dòng điện và điện áp dựa trên cảm biến
+  sensor.volt = (sensor.volt / 200) * (3.3 / 1023.0) * 11;                  // Điều chỉnh cho nguồn 3.3V
+  sensor.current = ((sensor.current / 200) - 512) * (3.3 / 1023.0) / 0.066; // Điều chỉnh cho nguồn 3.3V
+
+  if (sensor.current < 0)
+    sensor.current = 0; // Bỏ qua giá trị âm (dòng rất nhỏ)
+
+  // Tính công suất
+  sensor.power = sensor.volt * sensor.current; // Công suất (Watt)
+
+  // Tính thời gian trôi qua
+  unsigned long currentMillis = millis();
+  elapsedTime = (currentMillis - previousMillis) / 1000.0; // Thời gian tính bằng giây
+  previousMillis = currentMillis;
+
+  // Tính toán tổng năng lượng tiêu thụ (Watt-hour)
+  totalCharge += current * elapsedTime; // Tích lũy dòng
+  ampHours = totalCharge / 3600.0;      // Đổi sang Amp-giờ
 }
 void Load::Turn_On_Buzzer()
 {
@@ -116,4 +217,5 @@ void loop()
 {
   sensor.Read_Sensor();
   oled_1306.display_oled();
+  delay(1000); // Thêm thời gian chờ giữa các lần cập nhật
 }
