@@ -13,12 +13,13 @@ bool buzzerTriggered = false;                // Biến cờ để kiểm tra khi
 double hum_tmp = 0, temp_tmp = 0;            // Biến lưu trữ giá trị cũ của nhiệt độ và độ ẩm
 double volt_tmp = 0, current_tmp = 0;        // Biến lưu trữ giá trị cũ của điện áp và dòng điện
 int moisture_tmp = 0;
+int target_value_tmp = 0;
 int previousState = 0;                       // Trạng thái trước đó của hiển thị
 
 volatile bool mode_tmp=false;
 unsigned long lastBlinkTime;
 volatile long lcdBlinking=false;
-volatile long buzzerStartTime;
+//volatile long buzzerStartTime;
 volatile bool emergencyMode = false;         // Emergency mode status
 
 //volatile em_mode=false;
@@ -65,9 +66,9 @@ class Sensor // Quản lý các thông tin về cảm biến ( chân cảm biế
     String status;         // Trạng thái độ ẩm đất (WET, OK, DRY)
     DHTesp dhtSensor;
     
-    float volt, current, power, ampHours;
+    float volt, current, power, wattHours;
     unsigned long previousMillis;
-    float totalCharge;
+    float totalEnergy;
     float elapsedTime;
     String temp, hum;
 
@@ -89,6 +90,7 @@ class Load // Class quản lý các tải, hiển thị( motor, LCD 16x02)
     void Set_Load_Pin();
     void Turn_On_Buzzer();
     void Control_Motor();
+    void Stop_Motor();
     
 };
 
@@ -153,10 +155,11 @@ if (state != previousState) {
       }
       break;
       case 2:
-      if (abs(sensor.moisturePercent - moisture_tmp) >= 1) // Kiểm tra thay đổi độ ẩm đất
+      if (abs(sensor.moisturePercent - moisture_tmp) >= 1|| abs(sensor.target_value-target_value_tmp)>=1) // Kiểm tra thay đổi độ ẩm đất
       {
         lcd.clear(); // Xóa LCD khi có thay đổi độ ẩm đất
         moisture_tmp = sensor.moisturePercent;
+        target_value_tmp=sensor.target_value;
       }
       lcd.setCursor(0, 0);
       lcd.print("Soil: ");
@@ -165,13 +168,14 @@ if (state != previousState) {
       lcd.setCursor(8, 0);
       lcd.print("%");
       lcd.setCursor(10, 0);
-//      lcd.print("Status: ");
-//      lcd.setCursor(8, 1);
-      lcd.print("-"+sensor.status);
+
+      lcd.print("- "+sensor.status);
       lcd.setCursor(0,1);
       lcd.print("Target: ");
       lcd.setCursor(8, 1);
       lcd.print(sensor.target_value);
+      lcd.setCursor(11, 1);
+      lcd.print("%");
       break;
       case 3:
       if (
@@ -189,16 +193,16 @@ if (state != previousState) {
       lcd.print("V");
       lcd.setCursor(9, 0);
       lcd.print(String(sensor.power));
-      lcd.setCursor(14, 0);
+      lcd.setCursor(15, 0);
       lcd.print("W");
       lcd.setCursor(0, 1);
       lcd.print(String(sensor.current));
       lcd.setCursor(6, 1);
       lcd.print("mA");
       lcd.setCursor(9, 1);
-      lcd.print(String(sensor.ampHours));
+      lcd.print(String(sensor.wattHours));
       lcd.setCursor(14, 1);
-      lcd.print("Ah");
+      lcd.print("Wh");
       break;
       default:
       break;
@@ -211,7 +215,7 @@ void Sensor::Set_Sensor_Pin() // set chân cho các cảm biến
   button_pin = 27;
   pinVol = 32;
   pinAmp = 35;
-  target_pin= 5;
+  target_pin= 25;
   soil_sensor_pin = 4;
   em_button_pin = 19;
   pinMode(button_pin, INPUT_PULLUP); // Cấu hình nút nhấn với pullup
@@ -250,6 +254,7 @@ void Sensor::Read_Sensor() // đọc giá trị cảm biến
   }
   int setvalue=analogRead(sensor.target_pin);
   sensor.target_value=map(setvalue, 0, 4095, 0,100);
+  
 //  Serial.print("Set Value");
 //  Serial.println(setvalue);
 //  Serial.print("Target value");
@@ -266,20 +271,22 @@ void Sensor::Read_Sensor() // đọc giá trị cảm biến
     delay(1);
   }
 
-  sensor.volt = (sensor.volt / 200) * (3.3 / 1023.0) * 11;                  // Voltage adjustment for 3.3V source
-  sensor.current = ((sensor.current / 200) - 512) * (3.3 / 1023.0) / 0.066; // Current adjustment for 3.3V source
+  // Convert readings to voltage and current values for a 5V system
+sensor.volt = (sensor.volt / 200.0) * (5.0 / 1023.0) * 11; // 11 is the voltage divider ratio
+sensor.current = ((sensor.current / 200.0) - 512) * (5.0 / 1023.0) / 0.066; // 0.066 is the current sensor sensitivity
 
-  if (sensor.current < 0)
+if (sensor.current < 0)
     sensor.current = 0; // Ignore negative values
 
-  sensor.power = sensor.volt * sensor.current; // Power (Watts)
+sensor.power = sensor.volt/1000 * sensor.current; // Power in Watts
 
-  unsigned long currentMillis = millis();
-  elapsedTime = (currentMillis - previousMillis) / 1000.0; // Time in seconds
-  previousMillis = currentMillis;
+unsigned long currentMillis = millis();
+elapsedTime = (currentMillis - previousMillis) / 1000.0; // Time in seconds
+previousMillis = currentMillis;
 
-  totalCharge += current * elapsedTime; // Accumulate current over time
-  ampHours = totalCharge / 3600.0;      // Convert to Amp-hours
+// Accumulate power over time for watt-hours
+totalEnergy += sensor.power * elapsedTime; // Accumulate power over time
+wattHours = totalEnergy / 3600.0; // Convert to Watt-hours (Wh)
   
 }
 
@@ -302,23 +309,22 @@ void Load::Turn_On_Buzzer()
 {
   tone(Buzzer, 3000, 300);
 }
-
-void Load::Control_Motor() {
-  if(sensor.moisturePercent==sensor.target_value){
+void Load::Stop_Motor(){
     digitalWrite(motor_left,LOW);
     digitalWrite(motor_right, LOW);
   }
-  else{
+void Load::Control_Motor() {
+  
     digitalWrite(motor_left, HIGH);
     digitalWrite(motor_right, LOW);
   // Map giá trị độ ẩm sang giá trị PWM (tỉ lệ nghịch)
-    int pwmValue = map(sensor.target_value, 0, 100, 255, 0);
+    int pwmValue = map(sensor.moisturePercent, 0, sensor.target_value, 255, 0);
 
   // Đảm bảo giá trị PWM nằm trong khoảng hợp lệ
     pwmValue = constrain(pwmValue, 0, 255);
 
     analogWrite(pwm_pin, pwmValue);  // Gửi giá trị PWM tới chân PWM
-  }
+  
   
 }
 
@@ -340,6 +346,7 @@ void loop(){
 
   // Emergency Mode Logic
   if (emergencyMode) {
+    load.Stop_Motor();
     lcd.setCursor(1, 0);
     lcd.print("Emergency mode");
     
