@@ -165,9 +165,9 @@ if (state != previousState) {
       lcd.print("Soil: ");
       lcd.setCursor(6, 0);
       lcd.print(sensor.moisturePercent);
-      lcd.setCursor(8, 0);
+      lcd.setCursor(9, 0);
       lcd.print("%");
-      lcd.setCursor(10, 0);
+      lcd.setCursor(11, 0);
 
       lcd.print("- "+sensor.status);
       lcd.setCursor(0,1);
@@ -379,7 +379,7 @@ void loop(){
     sensor.Read_Sensor();
     lcd_1602.display_lcd();
     load.Control_Motor();
-    delay(1000);  // Delay between updates
+    delay(10);  // Delay between updates
   }
 
 }
