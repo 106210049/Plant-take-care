@@ -348,6 +348,7 @@ void enterDeepSleepMode() {
 void setup()
 {
   Serial.begin(115200);
+  setCpuFrequencyMhz(80);
   sensor.Set_Sensor_Pin();
   load.Set_Load_Pin();
   lcd_1602.Set_up_lcd();
@@ -355,6 +356,8 @@ void setup()
 }
 
 void loop() {
+  double CPUFreq=getCpuFrequencyMhz();
+  Serial.println(CPUFreq);
   unsigned long currentTime = millis(); // Get current time
 
   // Check if the mode has changed to update the display and reset variables
