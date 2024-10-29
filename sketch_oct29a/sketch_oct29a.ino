@@ -339,7 +339,7 @@ void Load::Control_Motor() {
 }
 
 void enterDeepSleepMode() {
-  // Serial.println("Entering deep sleep...");
+  Serial.println("Entering deep sleep...");
   lcd.clear();
   lcd.noBacklight();
   delay(100);
@@ -404,7 +404,7 @@ void loop() {
       delay(1000); // 1-second delay after motor stops
       enterDeepSleepMode();
     }
-    // Serial.println(motorState);
+    Serial.println(motorState);
     delay(10);  // Delay between updates
   }
 }
