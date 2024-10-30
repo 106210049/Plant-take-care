@@ -342,7 +342,7 @@ void enterDeepSleepMode() {
   Serial.println("Entering deep sleep...");
   lcd.clear();
   lcd.noBacklight();
-  delay(100);
+  delay(10);
   esp_deep_sleep_start();  
 }
 void setup()
@@ -356,8 +356,8 @@ void setup()
 }
 
 void loop() {
-  double CPUFreq=getCpuFrequencyMhz();
-  Serial.println(CPUFreq);
+  // double CPUFreq=getCpuFrequencyMhz();
+  // Serial.println(CPUFreq);
   unsigned long currentTime = millis(); // Get current time
 
   // Check if the mode has changed to update the display and reset variables
@@ -404,7 +404,7 @@ void loop() {
     
     // Enter deep sleep if in normal mode and no activity for a while
     if (currentTime - lastDebounceTime > 20000 &&motorState!=true) {  
-      delay(1000); // 1-second delay after motor stops
+      // delay(1000); // 1-second delay after motor stops
       enterDeepSleepMode();
     }
     Serial.println(motorState);
