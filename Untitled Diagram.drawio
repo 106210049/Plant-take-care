@@ -352,7 +352,7 @@
           <mxGeometry x="360" y="200" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="7kPIYvRPCsTpTRmYOVNO-5" value="Warning Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="600" y="320" width="120" height="40" as="geometry" />
+          <mxGeometry x="560" y="320" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="7kPIYvRPCsTpTRmYOVNO-7" value="" style="endArrow=classic;html=1;rounded=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="7kPIYvRPCsTpTRmYOVNO-5">
           <mxGeometry width="50" height="50" relative="1" as="geometry">
@@ -363,23 +363,23 @@
         <mxCell id="7kPIYvRPCsTpTRmYOVNO-9" style="edgeStyle=orthogonalEdgeStyle;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="7kPIYvRPCsTpTRmYOVNO-5" target="7kPIYvRPCsTpTRmYOVNO-5">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="690" y="310" />
-              <mxPoint x="760" y="310" />
-              <mxPoint x="760" y="380" />
-              <mxPoint x="690" y="380" />
+              <mxPoint x="650" y="310" />
+              <mxPoint x="720" y="310" />
+              <mxPoint x="720" y="380" />
+              <mxPoint x="650" y="380" />
             </Array>
           </mxGeometry>
         </mxCell>
         <mxCell id="3z4yVMrApxhLmCbXclYi-1" value="Read Data Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="-80" y="320" width="120" height="40" as="geometry" />
+          <mxGeometry x="-40" y="320" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="3z4yVMrApxhLmCbXclYi-2" style="edgeStyle=orthogonalEdgeStyle;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" source="3z4yVMrApxhLmCbXclYi-1" target="3z4yVMrApxhLmCbXclYi-1" parent="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="10" y="310" />
-              <mxPoint x="80" y="310" />
-              <mxPoint x="80" y="380" />
-              <mxPoint x="10" y="380" />
+              <mxPoint x="50" y="310" />
+              <mxPoint x="120" y="310" />
+              <mxPoint x="120" y="380" />
+              <mxPoint x="50" y="380" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -396,15 +396,15 @@
           </mxGeometry>
         </mxCell>
         <mxCell id="3z4yVMrApxhLmCbXclYi-7" value="LCD Display Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="120" y="320" width="120" height="40" as="geometry" />
+          <mxGeometry x="160" y="320" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="3z4yVMrApxhLmCbXclYi-8" style="edgeStyle=orthogonalEdgeStyle;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" source="3z4yVMrApxhLmCbXclYi-7" target="3z4yVMrApxhLmCbXclYi-7" parent="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="210" y="310" />
-              <mxPoint x="280" y="310" />
-              <mxPoint x="280" y="380" />
-              <mxPoint x="210" y="380" />
+              <mxPoint x="250" y="310" />
+              <mxPoint x="320" y="310" />
+              <mxPoint x="320" y="380" />
+              <mxPoint x="250" y="380" />
             </Array>
           </mxGeometry>
         </mxCell>
@@ -430,15 +430,21 @@
         <mxCell id="3z4yVMrApxhLmCbXclYi-12" style="edgeStyle=orthogonalEdgeStyle;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" source="3z4yVMrApxhLmCbXclYi-13" target="3z4yVMrApxhLmCbXclYi-13" parent="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="890" y="310" />
-              <mxPoint x="960" y="310" />
-              <mxPoint x="960" y="380" />
-              <mxPoint x="890" y="380" />
+              <mxPoint x="850" y="310" />
+              <mxPoint x="920" y="310" />
+              <mxPoint x="920" y="380" />
+              <mxPoint x="850" y="380" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="3z4yVMrApxhLmCbXclYi-13" value="Warning Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
-          <mxGeometry x="800" y="320" width="120" height="40" as="geometry" />
+        <mxCell id="3z4yVMrApxhLmCbXclYi-13" value="Light Control Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+          <mxGeometry x="760" y="320" width="120" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="3z4yVMrApxhLmCbXclYi-14" value="" style="endArrow=classic;html=1;rounded=0;curved=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" target="3z4yVMrApxhLmCbXclYi-13">
+          <mxGeometry width="50" height="50" relative="1" as="geometry">
+            <mxPoint x="420" y="240" as="sourcePoint" />
+            <mxPoint x="750" y="200" as="targetPoint" />
+          </mxGeometry>
         </mxCell>
       </root>
     </mxGraphModel>
