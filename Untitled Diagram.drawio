@@ -230,7 +230,7 @@
     </mxGraphModel>
   </diagram>
   <diagram id="KFx1ojyaskKMLDQoKbUZ" name="Page-3">
-    <mxGraphModel dx="1044" dy="527" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+    <mxGraphModel dx="1228" dy="620" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -249,7 +249,7 @@
         <mxCell id="WlJMOIpv4bIcl4Q1SBwu-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="WlJMOIpv4bIcl4Q1SBwu-4" target="WlJMOIpv4bIcl4Q1SBwu-7">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="WlJMOIpv4bIcl4Q1SBwu-4" value="Đọc các giá trị cảm biến" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="WlJMOIpv4bIcl4Q1SBwu-4" value="Đọc cảm biến mưa, DHT11, siêu âm, ánh sáng" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="360" y="320" width="120" height="80" as="geometry" />
         </mxCell>
         <mxCell id="WlJMOIpv4bIcl4Q1SBwu-7" value="Truyền giá trị cảm biến qua giao thức CAN" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
