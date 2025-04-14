@@ -370,7 +370,7 @@
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="3z4yVMrApxhLmCbXclYi-1" value="Send Data Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="3z4yVMrApxhLmCbXclYi-1" value="Read Data Task" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="80" y="320" width="120" height="40" as="geometry" />
         </mxCell>
         <mxCell id="3z4yVMrApxhLmCbXclYi-2" style="edgeStyle=orthogonalEdgeStyle;curved=1;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.75;exitY=0;exitDx=0;exitDy=0;entryX=0.75;entryY=1;entryDx=0;entryDy=0;" edge="1" source="3z4yVMrApxhLmCbXclYi-1" target="3z4yVMrApxhLmCbXclYi-1" parent="1">
