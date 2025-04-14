@@ -243,7 +243,7 @@
         <mxCell id="WlJMOIpv4bIcl4Q1SBwu-5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="WlJMOIpv4bIcl4Q1SBwu-2" target="WlJMOIpv4bIcl4Q1SBwu-4">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="WlJMOIpv4bIcl4Q1SBwu-2" value="Khởi tạo cảm biến và tham số cho giao thức CAN" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
+        <mxCell id="WlJMOIpv4bIcl4Q1SBwu-2" value="Khởi tạo cảm biến (cảm biến mưa, DHT11, ...)&amp;nbsp; và tham số cho giao thức CAN" style="rounded=0;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="360" y="200" width="120" height="80" as="geometry" />
         </mxCell>
         <mxCell id="WlJMOIpv4bIcl4Q1SBwu-8" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="WlJMOIpv4bIcl4Q1SBwu-4" target="WlJMOIpv4bIcl4Q1SBwu-7">
