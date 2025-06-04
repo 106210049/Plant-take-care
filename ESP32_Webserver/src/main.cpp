@@ -14,8 +14,8 @@ MCP2515 mcp2515(SPI_CS_PIN);
 struct can_frame canMsg;
 
 // WiFi
-const char *ssid = "Son";
-const char *password = "77687768";
+const char *ssid = "ESP32";
+const char *password = "00000001";
 
 // Biến dữ liệu
 float temperature = 0.0, humidity = 0.0;
@@ -120,15 +120,14 @@ AsyncEventSource events("/events");
 // Kết nối WiFi
 void connectWifi()
 {
-  Serial.println("Connecting to WiFi...");
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi connected. IP: " + WiFi.localIP().toString());
+  Serial.println("Setting up Access Point...");
+
+  // Tạo mạng WiFi với tên ssid và password bạn định nghĩa phía trên
+  WiFi.softAP(ssid, password);
+
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
 }
 
 // Task: Đọc DHT
