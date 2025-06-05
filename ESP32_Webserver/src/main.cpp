@@ -6,29 +6,15 @@
 #include <mcp2515.h>
 #include "DHTesp.h"
 
-// Cấu hình phần cứng
+// --- Cấu hình phần cứng ---
 #define DHT_PIN 4
-DHTesp dhtSensor;
 #define SPI_CS_PIN 5
-MCP2515 mcp2515(SPI_CS_PIN);
-struct can_frame canMsg;
 
 // WiFi
 const char *ssid = "ESP32";
 const char *password = "00000001";
 
-// Biến dữ liệu
-float temperature = 0.0, humidity = 0.0;
-int rainStatus = 0, lightStatus = 0;
-JSONVar sensorData;
-
-// FreeRTOS
-QueueHandle_t jsonQueue;
-SemaphoreHandle_t xMutex;              // Bảo vệ biến dùng chung
-SemaphoreHandle_t xDataReadySemaphore; // Đồng bộ gửi dữ liệu
-
-// HTML giao diện
-// Giao diện HTML dashboard
+// HTML giao diện (giữ nguyên như bạn có thể đưa ra ngoài 2 class)
 const char index_html[] PROGMEM = R"rawliteral(
 <!DOCTYPE HTML><html>
 <head>
@@ -117,119 +103,175 @@ const char index_html[] PROGMEM = R"rawliteral(
 AsyncWebServer server(80);
 AsyncEventSource events("/events");
 
-// Kết nối WiFi
-void connectWifi()
+class DataHandler; // forward declaration
+
+class SensorManager
 {
-  Serial.println("Setting up Access Point...");
+  friend class DataHandler;
 
-  // Tạo mạng WiFi với tên ssid và password bạn định nghĩa phía trên
-  WiFi.softAP(ssid, password);
+private:
+  DHTesp dhtSensor;
+  MCP2515 mcp2515;
+  struct can_frame canMsg;
 
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
-}
+  // Data
+  float temperature = 0.0;
+  float humidity = 0.0;
+  int rainStatus = 0;
+  int lightStatus = 0;
 
-// Task: Đọc DHT
-void Read_DHT(void *parameter)
-{
-  while (1)
+  SemaphoreHandle_t xMutex;
+
+public:
+  SensorManager() : mcp2515(SPI_CS_PIN) {}
+
+  void begin(SemaphoreHandle_t mutex)
   {
-    TempAndHumidity data = dhtSensor.getTempAndHumidity();
-    if (!isnan(data.temperature) && !isnan(data.humidity))
-    {
-      if (xSemaphoreTake(xMutex, portMAX_DELAY))
-      {
-        temperature = data.temperature;
-        humidity = data.humidity;
-        xSemaphoreGive(xMutex);
-      }
-    }
-    else
-    {
-      Serial.println("Failed to read from DHT22");
-    }
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
+    xMutex = mutex;
+
+    dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
+
+    SPI.begin();
+    mcp2515.reset();
+    mcp2515.setBitrate(CAN_125KBPS);
+    mcp2515.setNormalMode();
   }
-}
 
-// Task: Nhận dữ liệu từ MCP2515 (CAN)
-void CAN_RECV(void *parameter)
-{
-  while (1)
+  void taskReadDHT(void *parameter)
   {
-    if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK)
+    while (1)
     {
-      if (canMsg.can_id == 0x100)
+      TempAndHumidity data = dhtSensor.getTempAndHumidity();
+      if (!isnan(data.temperature) && !isnan(data.humidity))
       {
         if (xSemaphoreTake(xMutex, portMAX_DELAY))
         {
-          rainStatus = canMsg.data[0];
-          lightStatus = canMsg.data[3];
+          temperature = data.temperature;
+          humidity = data.humidity;
           xSemaphoreGive(xMutex);
         }
       }
-    }
-    vTaskDelay(500 / portTICK_PERIOD_MS);
-  }
-}
-
-// Task: Tạo JSON và đưa vào queue
-void DataCollector(void *parameter)
-{
-  while (1)
-  {
-    float tempCopy, humCopy;
-    int rainCopy, lightCopy;
-
-    if (xSemaphoreTake(xMutex, portMAX_DELAY))
-    {
-      tempCopy = temperature;
-      humCopy = humidity;
-      rainCopy = rainStatus;
-      lightCopy = lightStatus;
-      xSemaphoreGive(xMutex);
-    }
-
-    JSONVar data;
-    data["temperature"] = String(tempCopy, 1);
-    data["humidity"] = String(humCopy, 1);
-    data["light"] = lightCopy ? "Dark" : "Bright";
-    data["rain"] = rainCopy ? "Raining" : "Dry";
-
-    String jsonStr = JSON.stringify(data);
-
-    if (uxQueueSpacesAvailable(jsonQueue) > 0)
-    {
-      xQueueSend(jsonQueue, &jsonStr, portMAX_DELAY);
-      xSemaphoreGive(xDataReadySemaphore); // 🔁 phát tín hiệu cho SendData
-    }
-    else
-    {
-      Serial.println("[Queue] Overflow prevented: message dropped");
-    }
-
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-  }
-}
-
-// Task: Gửi dữ liệu SSE khi được thông báo
-void SendData(void *parameter)
-{
-  String msg;
-  while (1)
-  {
-    if (xSemaphoreTake(xDataReadySemaphore, portMAX_DELAY) == pdTRUE)
-    {
-      if (xQueueReceive(jsonQueue, &msg, 0) == pdTRUE)
+      else
       {
-        if (events.count() > 0)
+        Serial.println("Failed to read from DHT22");
+      }
+      vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+  }
+
+  void taskCANReceive(void *parameter)
+  {
+    while (1)
+    {
+      if (mcp2515.readMessage(&canMsg) == MCP2515::ERROR_OK)
+      {
+        if (canMsg.can_id == 0x100)
         {
-          events.send(msg.c_str(), "sensor_data", millis());
+          if (xSemaphoreTake(xMutex, portMAX_DELAY))
+          {
+            rainStatus = canMsg.data[0];
+            lightStatus = canMsg.data[3];
+            xSemaphoreGive(xMutex);
+          }
+        }
+      }
+      vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+  }
+};
+
+class DataHandler
+{
+  friend class SensorManager;
+
+private:
+  QueueHandle_t jsonQueue;
+  SemaphoreHandle_t xMutex;
+  SemaphoreHandle_t xDataReadySemaphore;
+  SensorManager *sensorMgr;
+
+public:
+  DataHandler() {}
+
+  void begin(SensorManager *sensor, SemaphoreHandle_t mutex, QueueHandle_t queue, SemaphoreHandle_t dataReady)
+  {
+    sensorMgr = sensor;
+    xMutex = mutex;
+    jsonQueue = queue;
+    xDataReadySemaphore = dataReady;
+  }
+
+  void taskDataCollector(void *parameter)
+  {
+    while (1)
+    {
+      float tempCopy, humCopy;
+      int rainCopy, lightCopy;
+
+      if (xSemaphoreTake(xMutex, portMAX_DELAY))
+      {
+        tempCopy = sensorMgr->temperature;
+        humCopy = sensorMgr->humidity;
+        rainCopy = sensorMgr->rainStatus;
+        lightCopy = sensorMgr->lightStatus;
+        xSemaphoreGive(xMutex);
+      }
+
+      JSONVar data;
+      data["temperature"] = String(tempCopy, 1);
+      data["humidity"] = String(humCopy, 1);
+      data["light"] = lightCopy ? "Dark" : "Bright";
+      data["rain"] = rainCopy ? "Raining" : "Dry";
+
+      String jsonStr = JSON.stringify(data);
+
+      if (uxQueueSpacesAvailable(jsonQueue) > 0)
+      {
+        xQueueSend(jsonQueue, &jsonStr, portMAX_DELAY);
+        xSemaphoreGive(xDataReadySemaphore); // notify SendData task
+      }
+      else
+      {
+        Serial.println("[Queue] Overflow prevented: message dropped");
+      }
+
+      vTaskDelay(10000 / portTICK_PERIOD_MS);
+    }
+  }
+
+  void taskSendData(void *parameter)
+  {
+    String msg;
+    while (1)
+    {
+      if (xSemaphoreTake(xDataReadySemaphore, portMAX_DELAY) == pdTRUE)
+      {
+        if (xQueueReceive(jsonQueue, &msg, 0) == pdTRUE)
+        {
+          if (events.count() > 0)
+          {
+            events.send(msg.c_str(), "sensor_data", millis());
+          }
         }
       }
     }
   }
+};
+
+SensorManager sensorManager;
+DataHandler dataHandler;
+
+SemaphoreHandle_t xMutex;
+QueueHandle_t jsonQueue;
+SemaphoreHandle_t xDataReadySemaphore;
+
+void connectWifi()
+{
+  Serial.println("Setting up Access Point...");
+  WiFi.softAP(ssid, password);
+  IPAddress IP = WiFi.softAPIP();
+  Serial.print("AP IP address: ");
+  Serial.println(IP);
 }
 
 void setup()
@@ -244,22 +286,41 @@ void setup()
   server.addHandler(&events);
   server.begin();
 
-  dhtSensor.setup(DHT_PIN, DHTesp::DHT22);
-  SPI.begin();
-  mcp2515.reset();
-  mcp2515.setBitrate(CAN_125KBPS);
-  mcp2515.setNormalMode();
-
-  // Tạo queue, mutex, semaphore
-  jsonQueue = xQueueCreate(10, sizeof(String));
   xMutex = xSemaphoreCreateMutex();
+  jsonQueue = xQueueCreate(10, sizeof(String));
   xDataReadySemaphore = xSemaphoreCreateBinary();
 
-  // Tạo task
-  xTaskCreatePinnedToCore(Read_DHT, "Read_DHT", 2048, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(CAN_RECV, "CAN_RECV", 2048, NULL, 1, NULL, 0);
-  xTaskCreatePinnedToCore(DataCollector, "DataCollector", 4096, NULL, 1, NULL, 1);
-  xTaskCreatePinnedToCore(SendData, "SendData", 4096, NULL, 1, NULL, 0);
+  sensorManager.begin(xMutex);
+  dataHandler.begin(&sensorManager, xMutex, jsonQueue, xDataReadySemaphore);
+
+  // Tạo task theo từng method của class, dùng lambda để gọi member function (cần truyền this pointer)
+  xTaskCreatePinnedToCore(
+      [](void *param)
+      {
+        ((SensorManager *)param)->taskReadDHT(param);
+      },
+      "Read_DHT", 2048, &sensorManager, 1, NULL, 1);
+
+  xTaskCreatePinnedToCore(
+      [](void *param)
+      {
+        ((SensorManager *)param)->taskCANReceive(param);
+      },
+      "CAN_RECV", 2048, &sensorManager, 1, NULL, 0);
+
+  xTaskCreatePinnedToCore(
+      [](void *param)
+      {
+        ((DataHandler *)param)->taskDataCollector(param);
+      },
+      "DataCollector", 4096, &dataHandler, 1, NULL, 1);
+
+  xTaskCreatePinnedToCore(
+      [](void *param)
+      {
+        ((DataHandler *)param)->taskSendData(param);
+      },
+      "SendData", 4096, &dataHandler, 1, NULL, 0);
 }
 
 void loop()
