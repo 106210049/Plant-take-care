@@ -11,8 +11,8 @@
 #define SPI_CS_PIN 5
 
 // WiFi
-const char *ssid = "ESP32";
-const char *password = "00000001";
+const char *ssid = "Long";
+const char *password = "00000000";
 
 // HTML giao diện (giữ nguyên như bạn có thể đưa ra ngoài 2 class)
 const char index_html[] PROGMEM = R"rawliteral(
@@ -273,13 +273,37 @@ SemaphoreHandle_t xMutex;
 QueueHandle_t jsonQueue;
 SemaphoreHandle_t xDataReadySemaphore;
 
+// void connectWifi()
+// {
+//   Serial.println("Setting up Access Point...");
+//   WiFi.softAP(ssid, password);
+//   IPAddress IP = WiFi.softAPIP();
+//   Serial.print("AP IP address: ");
+//   Serial.println(IP);
+// }
 void connectWifi()
 {
-  Serial.println("Setting up Access Point...");
-  WiFi.softAP(ssid, password);
-  IPAddress IP = WiFi.softAPIP();
-  Serial.print("AP IP address: ");
-  Serial.println(IP);
+  Serial.println("Connecting to WiFi...");
+  WiFi.begin(ssid, password);
+
+  int maxRetries = 20;
+  while (WiFi.status() != WL_CONNECTED && maxRetries > 0)
+  {
+    delay(500);
+    Serial.print(".");
+    maxRetries--;
+  }
+
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    Serial.println("\nWiFi connected.");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
+  }
+  else
+  {
+    Serial.println("\nFailed to connect to WiFi.");
+  }
 }
 
 void setup()
