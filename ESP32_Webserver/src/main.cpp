@@ -153,7 +153,9 @@ public:
       }
       else
       {
-        Serial.println("Failed to read from DHT22");
+        // Serial.println("Failed to read from DHT22");
+        temperature = 0;
+        humidity = 0;
       }
       vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
@@ -171,8 +173,14 @@ public:
           {
             rainStatus = canMsg.data[0];
             lightStatus = canMsg.data[3];
+            Serial.println("Rain: " + String(rainStatus));
+            Serial.println("Light: " + String(lightStatus));
             xSemaphoreGive(xMutex);
           }
+        }
+        else
+        {
+          Serial.println("CAN NOT RECV");
         }
       }
       vTaskDelay(500 / portTICK_PERIOD_MS);
