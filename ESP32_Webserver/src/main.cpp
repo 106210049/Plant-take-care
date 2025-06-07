@@ -10,7 +10,18 @@
   Wi-Fi station mode → REST JSON   /coords
                        SSE stream  /events
 */
+#if defined(ESP32)
+#include <WiFiMulti.h>
+WiFiMulti wifiMulti;
+#define DEVICE "ESP32"
+#elif defined(ESP8266)
+#include <ESP8266WiFiMulti.h>
+ESP8266WiFiMulti wifiMulti;
+#define DEVICE "ESP8266"
+#endif
 
+#include <InfluxDbClient.h>
+#include <InfluxDbCloud.h>
 #include <WiFi.h>
 #include <AsyncTCP.h>
 #include <ESPAsyncWebServer.h>
@@ -23,6 +34,16 @@
 #include <mcp2515.h>
 #include "DHTesp.h"
 
+#define INFLUXDB_URL "https://us-east-1-1.aws.cloud2.influxdata.com"
+#define INFLUXDB_TOKEN "tmZSNP8QORsplStzzkoeBPC8RIhqiNCvEIBOLT_F2-JHAw84lPN_HF3zRN0pKyAjOEh-kpmzRsOCUFG8uWEj4g=="
+#define INFLUXDB_ORG "ab0bae454287015a"
+#define INFLUXDB_BUCKET "SNPS@1234@"
+// Time zone info
+#define TZ_INFO "UTC7"
+// Tạo client InfluxDB với chứng chỉ cloud có sẵn
+InfluxDBClient client(INFLUXDB_URL, INFLUXDB_ORG, INFLUXDB_BUCKET, INFLUXDB_TOKEN, InfluxDbCloud2CACert);
+// Tạo điểm dữ liệu
+Point Sensor("environment");
 /* ─── Wi-Fi cấu hình ───────────────────────────────────────── */
 const char *ssid = "Long";
 const char *password = "00000000";
@@ -132,7 +153,8 @@ public:
       {
         xSemaphoreTake(self->xMutex, portMAX_DELAY);
         self->rain = f.data[0];
-        self->light = f.data[3];
+        self->light = f.data[1];
+        Serial.printf("CAN: %d %d\n", f.data[0], f.data[1]);
         xSemaphoreGive(self->xMutex);
       }
       vTaskDelay(pdMS_TO_TICKS(500));
@@ -192,6 +214,25 @@ public:
         xQueueSend(self->queue, &out, portMAX_DELAY);
         xSemaphoreGive(self->xSem);
       }
+      Sensor.addField("temperature", t);
+      Sensor.addField("humidity", h);
+      Sensor.addField("light", l);
+      Sensor.addField("rain", r);
+
+      Serial.print("Writing: ");
+      Serial.println(Sensor.toLineProtocol());
+
+      if (wifiMulti.run() != WL_CONNECTED)
+      {
+        Serial.println("Wifi connection lost");
+      }
+
+      if (!client.writePoint(Sensor))
+      {
+        Serial.print("InfluxDB write failed: ");
+        Serial.println(client.getLastErrorMessage());
+      }
+      Serial.println("Waitting 10s");
       vTaskDelay(pdMS_TO_TICKS(10000));
     }
   }
@@ -268,10 +309,10 @@ SemaphoreHandle_t xDataReady;
 void connectWifi()
 {
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
+  wifiMulti.addAP(ssid, password); // <--- sử dụng đúng WiFiMulti
   Serial.print("Wi-Fi…");
   int retry = 20;
-  while (WiFi.status() != WL_CONNECTED && retry--)
+  while (wifiMulti.run() != WL_CONNECTED && retry--)
   {
     delay(500);
     Serial.print('.');
@@ -319,14 +360,27 @@ void setup()
   /* --- Initialisation --- */
   sensorMgr.begin(xMutex);
   dataHdl.begin(&sensorMgr, jsonQueue, xDataReady);
+  // Đồng bộ thời gian
+  timeSync(TZ_INFO, "pool.ntp.org", "time.nis.gov");
 
+  // Kiểm tra kết nối InfluxDB
+  if (client.validateConnection())
+  {
+    Serial.print("Connected to InfluxDB: ");
+    Serial.println(client.getServerUrl());
+  }
+  else
+  {
+    Serial.print("InfluxDB connection failed: ");
+    Serial.println(client.getLastErrorMessage());
+  }
   /* --- Tasks --- */
   xTaskCreatePinnedToCore(SensorManager::taskReadDHT, "ReadDHT", 2048,
                           &sensorMgr, 1, nullptr, 1);
   xTaskCreatePinnedToCore(SensorManager::taskCANRecv, "CANRecv", 2048,
                           &sensorMgr, 1, nullptr, 0);
 
-  xTaskCreatePinnedToCore(DataHandler::taskCollect, "Collector", 4096,
+  xTaskCreatePinnedToCore(DataHandler::taskCollect, "Collector", 8192,
                           &dataHdl, 1, nullptr, 1);
   xTaskCreatePinnedToCore(DataHandler::taskSend, "SendSSE", 4096,
                           &dataHdl, 1, nullptr, 0);
@@ -337,5 +391,6 @@ void setup()
 /* ─── loop() (nhàn rỗi) ───────────────────────────────────── */
 void loop()
 {
+
   vTaskDelay(portMAX_DELAY); // tất cả logic nằm trong task
 }
