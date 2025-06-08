@@ -3,157 +3,245 @@
 #include <Arduino.h>
 #include <STM32FreeRTOS.h>
 
-// Cảm biến
 #define RAIN_SENSOR_PIN PA0
 #define LDR_PIN PB0
 #define TRIG_PIN PB15
 #define ECHO_PIN PB14
-
 #define SPI_CS_PIN PA4
-MCP2515 mcp2515(SPI_CS_PIN);
-struct can_frame canMsg;
 
-// Biến sensor dùng chung
-typedef struct
+// ---------------- Shared Sensor Data ----------------
+struct SensorData
 {
   int rain;
   int light;
   int distanceStatus;
-} SensorData;
+};
 
-SensorData sharedData; // Dữ liệu chia sẻ giữa các task
-
-// Mutex bảo vệ truy cập sharedData
-SemaphoreHandle_t dataMutex;
-SemaphoreHandle_t serialMutex;
-
-void RainTask(void *pvParameters)
+// ---------------- Sensor Manager ----------------
+class SensorManager
 {
-  for (;;)
-  {
-    int rain = digitalRead(RAIN_SENSOR_PIN) == LOW ? 1 : 0;
+public:
+  SensorData data;
+  SemaphoreHandle_t dataMutex;
+  SemaphoreHandle_t serialMutex;
 
+  SensorManager()
+  {
+    data = {0, 0, 0};
+    dataMutex = xSemaphoreCreateMutex();
+    serialMutex = xSemaphoreCreateMutex();
+  }
+
+  ~SensorManager()
+  {
+    vSemaphoreDelete(dataMutex);
+    vSemaphoreDelete(serialMutex);
+  }
+
+  void updateRain(int value)
+  {
     if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE)
     {
-      sharedData.rain = rain;
+      data.rain = value;
       xSemaphoreGive(dataMutex);
     }
-
-    vTaskDelay(pdMS_TO_TICKS(500));
   }
-}
 
-void LightTask(void *pvParameters)
-{
-  for (;;)
+  void updateLight(int value)
   {
-    int level = analogRead(LDR_PIN);
-    int light = (level > 50) ? 1 : 0;
-
     if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE)
     {
-      sharedData.light = light;
+      data.light = value;
       xSemaphoreGive(dataMutex);
     }
-
-    vTaskDelay(pdMS_TO_TICKS(500));
   }
-}
 
-void DistanceTask(void *pvParameters)
-{
-  for (;;)
+  void updateDistance(int value)
   {
-    digitalWrite(TRIG_PIN, LOW);
-    delayMicroseconds(2);
-    digitalWrite(TRIG_PIN, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(TRIG_PIN, LOW);
-    long duration = pulseIn(ECHO_PIN, HIGH);
-    long distance = (duration * 0.0343) / 2;
-    int status = (distance < 30) ? 1 : 0;
-
     if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE)
     {
-      sharedData.distanceStatus = status;
+      data.distanceStatus = value;
       xSemaphoreGive(dataMutex);
     }
-
-    vTaskDelay(pdMS_TO_TICKS(500));
   }
-}
 
-void CanSendTask(void *pvParameters)
-{
-  SensorData localData;
-
-  for (;;)
+  SensorData getData()
   {
-    // Copy an toàn từ biến chung
+    SensorData copy;
     if (xSemaphoreTake(dataMutex, portMAX_DELAY) == pdTRUE)
     {
-      localData = sharedData;
+      copy = data;
       xSemaphoreGive(dataMutex);
     }
-
-    // Gửi qua CAN
-    canMsg.can_id = 0x100;
-    canMsg.can_dlc = 5;
-    canMsg.data[0] = localData.rain;
-    canMsg.data[3] = localData.light;
-    canMsg.data[4] = localData.distanceStatus;
-
-    mcp2515.sendMessage(&canMsg);
-
-    // In serial
-    if (xSemaphoreTake(serialMutex, pdMS_TO_TICKS(100)) == pdTRUE)
-    {
-      Serial.print("Rain: ");
-      Serial.print(localData.rain == 1 ? "Rain" : "Dry");
-      Serial.print(" | Light: ");
-      Serial.print(localData.light == 1 ? "Dark" : "Bright");
-      Serial.print(" | Distance: ");
-      Serial.println(localData.distanceStatus == 1 ? "Dangerous" : "Safe");
-      xSemaphoreGive(serialMutex);
-    }
-
-    vTaskDelay(pdMS_TO_TICKS(500));
+    return copy;
   }
-}
+};
 
+// ---------------- Base Sensor Class ----------------
+class SensorBase
+{
+public:
+  SensorManager *manager;
+
+  SensorBase(SensorManager *mgr) : manager(mgr) {}
+
+  virtual void run() = 0;
+};
+
+// ---------------- Rain Sensor ----------------
+class RainSensor : public SensorBase
+{
+  uint8_t pin;
+
+public:
+  RainSensor(uint8_t p, SensorManager *mgr) : SensorBase(mgr), pin(p)
+  {
+    pinMode(pin, INPUT);
+  }
+
+  void run() override
+  {
+    for (;;)
+    {
+      int value = digitalRead(pin) == LOW ? 1 : 0;
+      manager->updateRain(value);
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
+  }
+};
+
+// ---------------- Light Sensor ----------------
+class LightSensor : public SensorBase
+{
+  uint8_t pin;
+
+public:
+  LightSensor(uint8_t p, SensorManager *mgr) : SensorBase(mgr), pin(p) {}
+
+  void run() override
+  {
+    for (;;)
+    {
+      int level = analogRead(pin);
+      int value = (level > 50) ? 1 : 0;
+      manager->updateLight(value);
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
+  }
+};
+
+// ---------------- Distance Sensor ----------------
+class DistanceSensor : public SensorBase
+{
+  uint8_t trig, echo;
+
+public:
+  DistanceSensor(uint8_t t, uint8_t e, SensorManager *mgr)
+      : SensorBase(mgr), trig(t), echo(e)
+  {
+    pinMode(trig, OUTPUT);
+    pinMode(echo, INPUT);
+  }
+
+  void run() override
+  {
+    for (;;)
+    {
+      digitalWrite(trig, LOW);
+      delayMicroseconds(2);
+      digitalWrite(trig, HIGH);
+      delayMicroseconds(10);
+      digitalWrite(trig, LOW);
+      long duration = pulseIn(echo, HIGH);
+      long dist = (duration * 0.0343) / 2;
+      int value = (dist < 30) ? 1 : 0;
+      manager->updateDistance(value);
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
+  }
+};
+
+// ---------------- CAN Transmitter ----------------
+class CanTransmitter
+{
+  MCP2515 &can;
+  SensorManager *manager;
+  struct can_frame msg;
+
+public:
+  CanTransmitter(MCP2515 &c, SensorManager *mgr) : can(c), manager(mgr)
+  {
+    msg.can_id = 0x100;
+    msg.can_dlc = 5;
+  }
+
+  void run()
+  {
+    for (;;)
+    {
+      SensorData data = manager->getData();
+
+      msg.data[0] = data.rain;
+      msg.data[1] = data.light;
+      msg.data[2] = data.distanceStatus;
+
+      can.sendMessage(&msg);
+
+      if (xSemaphoreTake(manager->serialMutex, pdMS_TO_TICKS(100)) == pdTRUE)
+      {
+        Serial.print("Rain: ");
+        Serial.print(data.rain == 1 ? "Rain" : "Dry");
+        Serial.print(" | Light: ");
+        Serial.print(data.light == 1 ? "Dark" : "Bright");
+        Serial.print(" | Distance: ");
+        Serial.println(data.distanceStatus == 1 ? "Dangerous" : "Safe");
+        xSemaphoreGive(manager->serialMutex);
+      }
+
+      vTaskDelay(pdMS_TO_TICKS(500));
+    }
+  }
+};
+
+// ---------------- Tasks Wrappers ----------------
+SensorManager manager;
+MCP2515 mcp2515(SPI_CS_PIN);
+
+RainSensor rain(RAIN_SENSOR_PIN, &manager);
+LightSensor light(LDR_PIN, &manager);
+DistanceSensor distance(TRIG_PIN, ECHO_PIN, &manager);
+CanTransmitter canTx(mcp2515, &manager);
+
+void RainTaskWrapper(void *pvParameters) { rain.run(); }
+void LightTaskWrapper(void *pvParameters) { light.run(); }
+void DistanceTaskWrapper(void *pvParameters) { distance.run(); }
+void CanSendTaskWrapper(void *pvParameters) { canTx.run(); }
+
+// ---------------- Setup ----------------
 void setup()
 {
   Serial.begin(115200);
-  pinMode(RAIN_SENSOR_PIN, INPUT);
-  pinMode(TRIG_PIN, OUTPUT);
-  pinMode(ECHO_PIN, INPUT);
 
   mcp2515.reset();
   mcp2515.setBitrate(CAN_125KBPS);
   mcp2515.setNormalMode();
 
-  dataMutex = xSemaphoreCreateMutex();
-  serialMutex = xSemaphoreCreateMutex();
-
-  if (dataMutex == NULL || serialMutex == NULL)
+  if (manager.dataMutex == NULL || manager.serialMutex == NULL)
   {
     Serial.println("Failed to create mutexes");
     while (1)
       ;
   }
 
-  // Khởi tạo shared data lần đầu
-  sharedData = {0, 0, 0};
-
-  xTaskCreate(RainTask, "Rain", 128, NULL, 1, NULL);
-  xTaskCreate(LightTask, "Light", 128, NULL, 1, NULL);
-  xTaskCreate(DistanceTask, "Distance", 128, NULL, 1, NULL);
-  xTaskCreate(CanSendTask, "CAN", 256, NULL, 2, NULL);
+  xTaskCreate(RainTaskWrapper, "Rain", 128, NULL, 1, NULL);
+  xTaskCreate(LightTaskWrapper, "Light", 128, NULL, 1, NULL);
+  xTaskCreate(DistanceTaskWrapper, "Distance", 128, NULL, 1, NULL);
+  xTaskCreate(CanSendTaskWrapper, "CAN", 256, NULL, 2, NULL);
 
   vTaskStartScheduler();
 }
 
 void loop()
 {
-  // Không dùng trong FreeRTOS
+  // Unused in FreeRTOS
 }
